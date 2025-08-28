@@ -9,7 +9,9 @@ import tiktoken
 from utils import load_checkpoint, save_checkpoint
 from tqdm import tqdm
 from torch.utils.tensorboard import SummaryWriter
+import time
 
+torch.set_float32_matmul_precision('high') # all matmul become fast (not how weigts store)
 
 def train(model, optimizer,config, loader, epoch, writer, save_step, save_path):
     progress_bar = tqdm(enumerate(loader), leave=True, desc=f'Epoch {epoch}: ', total=len(loader), dynamic_ncols=True)
@@ -17,12 +19,24 @@ def train(model, optimizer,config, loader, epoch, writer, save_step, save_path):
         global_step = epoch*len(loader) + step
         x, y = x.to(config.device), y.to(config.device)
         
-        optimizer.zero_grad()
-        loss = model(x, y)['loss']
+        t1 = time.time()
+        optimizer.zero_grad(set_to_none=True)
+        
+        with torch.autocast(device_type=config.device, dtype=torch.bfloat16):
+            output = model(x, y)
+            logits, loss = output['logits'], output['loss']
+            # import code; code.interact(local=locals())
+        
         loss.backward()
         optimizer.step()
-        progress_bar.set_postfix(loss=loss.item())
         
+        torch.cuda.synchronize()
+        t2 = time.time()
+        time_took = (t2 - t1) * 1000 # time will be in milliseconds
+        token_per_sec = (config.batch_size * config.context_len)/ (t2 - t1)
+        print(f"token per second {token_per_sec} and time took {time_took}")
+        
+        progress_bar.set_postfix(loss=loss.item())
         writer.add_scalar('Training loss', loss.item(), global_step)
         
         if (step+1) % save_step == 0:

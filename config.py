@@ -10,7 +10,7 @@ elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
 @dataclass
 class GptConfig:
     d_model:int = 768
-    context_len:int = 64
+    context_len:int = 1024
     n_layers:int = 12
     vocab_size:int = 50257
     n_heads:int = 12
