@@ -13,5 +13,4 @@ class GptConfig:
     head_dim:int = 96
     device: str = 'cuda' if torch.cuda.is_available() else 'cpu'
     intermidiate_size:int = d_model * 4
-    max_len:int = 50
     

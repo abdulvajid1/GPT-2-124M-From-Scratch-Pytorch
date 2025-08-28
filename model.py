@@ -6,9 +6,9 @@ import math
 
 
 class PositionalEncoding(nn.Module):
-    def __init__(self, config):
+    def __init__(self, config: GptConfig):
         super().__init__()
-        self.pos_embed = nn.Embedding(config.max_len, config.d_model)
+        self.pos_embed = nn.Embedding(config.context_len, config.d_model)
     
     def forward(self, x):
         seq_len = x.shape[1] 
@@ -17,11 +17,11 @@ class PositionalEncoding(nn.Module):
   
   
 class FeedForward(nn.Module):
-    def __init__(self, config):
+    def __init__(self, config: GptConfig):
         super().__init__()
         self.feed_forward = nn.Sequential(
             nn.Linear(config.d_model, config.intermidiate_size),
-            nn.GELU(),
+            nn.GELU(approximate='tanh'),
             nn.Linear(config.intermidiate_size, config.d_model)    
         )
         
@@ -30,7 +30,7 @@ class FeedForward(nn.Module):
  
     
 class RMSNorm(nn.Module):
-    def __init__(self, config, eps=1e-8):
+    def __init__(self, config: GptConfig, eps=1e-8):
         super().__init__()
         self.scale = nn.Parameter(torch.ones(config.d_model))
         self.eps = eps
@@ -42,23 +42,23 @@ class RMSNorm(nn.Module):
 
 
 class GPTAttention(nn.Module):
-    def __init__(self, config):
+    def __init__(self, config: GptConfig):
         super().__init__()
         self.config = config
         self.Q_w = nn.Linear(config.d_model, config.d_model)
         self.K_w = nn.Linear(config.d_model, config.d_model)
         self.V_w = nn.Linear(config.d_model, config.d_model)
         self.O_w = nn.Linear(config.d_model, config.d_model)
+        causal_mask = torch.tril(torch.ones(1, 1, config.context_len, config.context_len))
+        self.register_buffer('mask', causal_mask)
         
     def _mask_atten_scores(self, atten_score, seq_len):
         # Masking (Casual)
-        mask = torch.tril(torch.ones(1, 1, seq_len, seq_len)).to(self.config.device)  # lower triangle
-        atten_score = atten_score.masked_fill(mask==0, float('-inf'))
+        atten_score = atten_score.masked_fill(self.mask[:, :, :seq_len, :seq_len]==0, float('-inf'))
         return atten_score
     
     def _calc_atten_score(self, query, key):
-        d_k = key.size(-1)
-        atten_score = (query @ key.transpose(-1, -2)) / math.sqrt(d_k)
+        atten_score = (query @ key.transpose(-1, -2)) *  (1.0/ math.sqrt(key.size(-1)))
         return atten_score
     
     def _create_contextualized_embeds(self, atten_score, value):
@@ -86,7 +86,7 @@ class GPTAttention(nn.Module):
 
 
 class DecoderBlock(nn.Module):
-    def __init__(self, config):
+    def __init__(self, config: GptConfig):
         super().__init__()
         
         self.attention = GPTAttention(config)
@@ -101,14 +101,14 @@ class DecoderBlock(nn.Module):
     
 
 class GPT(nn.Module):
-    def __init__(self, config):
+    def __init__(self, config: GptConfig):
         super().__init__()
         
-        self.tok_embed = nn.Embedding(config.vocab_size, config.n_embed)
+        self.tok_embed = nn.Embedding(config.vocab_size, config.d_model)
         self.pos_embed = PositionalEncoding(config)
         self.decoder_blocks = nn.ModuleList([DecoderBlock(config) for _ in range(config.n_layers)])
         self.final_rms_norm = RMSNorm(config)
-        self.final_layer = nn.Linear(config.n_embed, config.vocab_size)
+        self.final_layer = nn.Linear(config.d_model, config.vocab_size)
         self.criteria = nn.CrossEntropyLoss()
     
     def forward(self, x, target):
@@ -130,8 +130,8 @@ class GPT(nn.Module):
 
 def main():
     config = GptConfig()
-    sample = torch.randint(1, 10, size=(1, 5)).to('cuda')
-    target = torch.randint(1, 10, size=(1, 5)).to('cuda')
+    sample = torch.randint(1, 10, size=(6, 5)).to('cuda')
+    target = torch.randint(1, 10, size=(6, 5)).to('cuda')
     gpt = GPT(config).to('cuda')
     print('logits shape', gpt(sample, target)['logits'].shape)
     print('loss', gpt(sample, target)['loss'])
