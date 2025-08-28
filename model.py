@@ -147,11 +147,15 @@ class GPT(nn.Module, PyTorchModelHubMixin):
         for _ in range(max_len):
             logits = self(idx, target=None)
             logits = logits[:, -1, :] / temperature
-            probs = F.softmax(logits, dim=-1)
+            probs = F.softmax(logits, dim=-1)  
             if top_k is not None:
-                probs, ix = torch.topk(probs, top_k, dim=-1)
-            next_token = torch.multinomial(probs, num_samples=1)
-            idx = torch.cat([idx, next_token], dim=1)
+                topk_probs, topk_vocab_indieces = torch.topk(probs, top_k, dim=-1)
+                next_token_idx = torch.multinomial(topk_probs, num_samples=1)
+                next_token = torch.gather(topk_vocab_indieces, -1, next_token_idx)
+                idx = torch.cat([idx, next_token], dim=-1)
+            else: 
+                next_token = torch.multinomial(probs, num_samples=1)
+                idx = torch.cat([idx, next_token], dim=-1)
         
         idx = idx.squeeze(0).detach().cpu().tolist()
         out = self.tokenizer.decode(idx)
@@ -166,7 +170,7 @@ def main():
     gpt = GPT(config)
     gpt.eval()
     gpt.to(config.device)
-    print("NO Crash", gpt.generate('hai what is', max_new_tokens=15))
+    print("NO Crash", gpt.generate('hai what is', max_new_tokens=15, top_k=5))
     
 
 if __name__ == '__main__':
