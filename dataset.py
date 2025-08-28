@@ -1,5 +1,4 @@
 from torch.utils.data import Dataset, DataLoader
-import tiktoken
 import torch
 
 class GPTDataset(Dataset):
