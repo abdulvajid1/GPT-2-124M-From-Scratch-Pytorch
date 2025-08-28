@@ -95,13 +95,8 @@ class DecoderBlock(nn.Module):
         self.norm2 = RMSNorm(config)
         
     def forward(self, x):
-        original_x = x
-        x = self.norm1(x)
-        x = self.attention(x) + original_x
-        
-        original_x = x
-        x = self.norm2(x)
-        x = self.feed_forward(x) + original_x
+        x = x + self.attention(self.norm1(x))
+        x = x + self.feed_forward(self.norm2(x))
         return x
     
 
