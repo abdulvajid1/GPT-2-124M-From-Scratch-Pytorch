@@ -117,7 +117,7 @@ class GPT(nn.Module, PyTorchModelHubMixin):
         self.final_rms_norm = RMSNorm(config)
         self.final_layer = nn.Linear(config.d_model, config.vocab_size)
     
-    def forward(self, x, target):
+    def forward(self, x, target=None):
         """x: (b, seq)
            target: (b, seq)"""
         batch_size, seq_len = x.size()
