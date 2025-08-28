@@ -140,8 +140,7 @@ class GPT(nn.Module, PyTorchModelHubMixin):
     @torch.no_grad()
     def generate(self, text, max_new_tokens=50, temperature=1.0, top_k=None):
         self.eval()
-
-        idx = torch.tensor(self.tokenizer.encode(text)).unsqueeze(0).to(self.config.device)
+        idx = torch.tensor(self.tokenizer.encode_batch(text)).to(self.config.device)
         max_len = max_new_tokens if max_new_tokens else self.config.context_len
         
         for _ in range(max_len):
@@ -156,21 +155,21 @@ class GPT(nn.Module, PyTorchModelHubMixin):
             else: 
                 next_token = torch.multinomial(probs, num_samples=1)
                 idx = torch.cat([idx, next_token], dim=-1)
-        
-        idx = idx.squeeze(0).detach().cpu().tolist()
-        out = self.tokenizer.decode(idx)
+        idx = idx.detach().cpu().tolist()
+        out = self.tokenizer.decode_batch(idx)
         return out
     
     
     
 def main():
     config = GptConfig()
-    sample = torch.randint(1, 10, size=(6, 5)).to(config.device)
-    target = torch.randint(1, 10, size=(6, 5)).to(config.device)
     gpt = GPT(config)
     gpt.eval()
     gpt.to(config.device)
-    print("NO Crash", gpt.generate('hai what is', max_new_tokens=15, top_k=5))
+    sample_input = ['hai what is'] * 5
+    out_list = gpt.generate(sample_input, max_new_tokens=15)
+    for out in out_list:
+        print(out)
     
 
 if __name__ == '__main__':
