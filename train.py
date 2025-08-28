@@ -58,6 +58,7 @@ def main():
     config = GptConfig()
     tokenizer = tiktoken.get_encoding('gpt2')
     model = GPT(config).to(config.device)
+    model = torch.compile(model)
     loader = get_data_loader(tokenizer, config.context_len, config.batch_size, num_workers=4, pin_memory=True)
     print(f'Total number of samples: {len(loader)}')
     optimizer = optim.AdamW(model.parameters(), lr=config.lr, betas=(.9, 0.999))
