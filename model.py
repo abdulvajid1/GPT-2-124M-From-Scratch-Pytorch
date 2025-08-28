@@ -116,6 +116,18 @@ class GPT(nn.Module, PyTorchModelHubMixin):
         self.decoder_blocks = nn.ModuleList([DecoderBlock(config) for _ in range(config.n_layers)])
         self.final_rms_norm = RMSNorm(config)
         self.final_layer = nn.Linear(config.d_model, config.vocab_size)
+        self.final_layer.weight = self.tok_embed.weight
+        
+        self.apply(self._init_weights)
+    
+    def _init_weights(self, module):
+        if isinstance(module, nn.Linear):
+            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            if module.bias is not None:
+                torch.nn.init.zeros_(module.bias)
+        elif isinstance(module, nn.Embedding):
+            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            
     
     def forward(self, x, target=None):
         """x: (b, seq)

@@ -19,6 +19,6 @@ class GptConfig:
     n_epoch:int = 5
     lr:float = 1e-4
     batch_size:int = 4
-    load_checkpoint = True
+    load_checkpoint = False
     
     

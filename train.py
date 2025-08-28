@@ -12,7 +12,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 
 def train(model, optimizer,config, loader, epoch, writer, save_step, save_path):
-    progress_bar = tqdm(enumerate(loader), leave=True, desc=f'Epoch {epoch}: ')
+    progress_bar = tqdm(enumerate(loader), leave=True, desc=f'Epoch {epoch}: ', total=len(loader), dynamic_ncols=True)
     for step, (x, y) in progress_bar:
         global_step = epoch*len(loader) + step
         x, y = x.to(config.device), y.to(config.device)
