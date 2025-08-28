@@ -3,6 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from config import GptConfig
 import math 
+from huggingface_hub import PyTorchModelHubMixin
+import tiktoken
 
 
 class PositionalEncoding(nn.Module):
@@ -104,10 +106,11 @@ class DecoderBlock(nn.Module):
         return x
     
 
-class GPT(nn.Module):
+class GPT(nn.Module, PyTorchModelHubMixin):
     def __init__(self, config: GptConfig):
         super().__init__()
-        
+        self.tokenizer = tiktoken.get_encoding('gpt2')
+        self.config = config
         self.tok_embed = nn.Embedding(config.vocab_size, config.d_model)
         self.pos_embed = PositionalEncoding(config)
         self.decoder_blocks = nn.ModuleList([DecoderBlock(config) for _ in range(config.n_layers)])
@@ -119,6 +122,7 @@ class GPT(nn.Module):
         """x: (b, seq)
            target: (b, seq)"""
         batch_size, seq_len = x.size()
+        assert seq_len <= self.config.context_len, "seq length should be less than context length"
         x = self.tok_embed(x)
         x = self.pos_embed(x)
         
@@ -127,18 +131,42 @@ class GPT(nn.Module):
             
         x = self.final_rms_norm(x)
         logits = self.final_layer(x) # (b, seq, vocab_size)
-        loss = self.criteria(logits.view(batch_size*seq_len, -1), target.view(-1))
-        return {'logits' : logits, "loss": loss}
+        if target != None:
+            loss = self.criteria(logits.view(batch_size*seq_len, -1), target.view(-1))
+            return {'logits' : logits, "loss": loss}
+        else:
+            return logits
     
-    
+    @torch.no_grad()
+    def generate(self, text, max_new_tokens=50, temperature=1.0, top_k=None):
+        self.eval()
 
+        idx = torch.tensor(self.tokenizer.encode(text)).unsqueeze(0).to(self.config.device)
+        max_len = max_new_tokens if max_new_tokens else self.config.context_len
+        
+        for _ in range(max_len):
+            logits = self(idx, target=None)
+            logits = logits[:, -1, :] / temperature
+            probs = F.softmax(logits, dim=-1)
+            if top_k is not None:
+                probs, ix = torch.topk(probs, top_k, dim=-1)
+            next_token = torch.multinomial(probs, num_samples=1)
+            idx = torch.cat([idx, next_token], dim=1)
+        
+        idx = idx.squeeze(0).detach().cpu().tolist()
+        out = self.tokenizer.decode(idx)
+        return out
+    
+    
+    
 def main():
     config = GptConfig()
-    sample = torch.randint(1, 10, size=(6, 5)).to('cuda')
-    target = torch.randint(1, 10, size=(6, 5)).to('cuda')
-    gpt = GPT(config).to('cuda')
-    print('logits shape', gpt(sample, target)['logits'].shape)
-    print('loss', gpt(sample, target)['loss'])
+    sample = torch.randint(1, 10, size=(6, 5)).to(config.device)
+    target = torch.randint(1, 10, size=(6, 5)).to(config.device)
+    gpt = GPT(config)
+    gpt.eval()
+    gpt.to(config.device)
+    print("NO Crash", gpt.generate('hai what is', max_new_tokens=15))
     
 
 if __name__ == '__main__':
