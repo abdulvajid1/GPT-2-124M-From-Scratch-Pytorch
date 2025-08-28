@@ -116,7 +116,6 @@ class GPT(nn.Module, PyTorchModelHubMixin):
         self.decoder_blocks = nn.ModuleList([DecoderBlock(config) for _ in range(config.n_layers)])
         self.final_rms_norm = RMSNorm(config)
         self.final_layer = nn.Linear(config.d_model, config.vocab_size)
-        self.criteria = nn.CrossEntropyLoss()
     
     def forward(self, x, target):
         """x: (b, seq)
@@ -131,11 +130,11 @@ class GPT(nn.Module, PyTorchModelHubMixin):
             
         x = self.final_rms_norm(x)
         logits = self.final_layer(x) # (b, seq, vocab_size)
+        loss = None
         if target != None:
-            loss = self.criteria(logits.view(batch_size*seq_len, -1), target.view(-1))
-            return {'logits' : logits, "loss": loss}
-        else:
-            return logits
+            loss = F.cross_entropy(logits.view(batch_size*seq_len, -1), target.view(-1))
+        
+        return {'logits' : logits, "loss": loss}
     
     @torch.no_grad()
     def generate(self, text, max_new_tokens=50, temperature=1.0, top_k=None):
@@ -144,7 +143,7 @@ class GPT(nn.Module, PyTorchModelHubMixin):
         max_len = max_new_tokens if max_new_tokens else self.config.context_len
         
         for _ in range(max_len):
-            logits = self(idx, target=None)
+            logits = self(idx, target=None)['logits']
             logits = logits[:, -1, :] / temperature
             probs = F.softmax(logits, dim=-1)  
             if top_k is not None:
