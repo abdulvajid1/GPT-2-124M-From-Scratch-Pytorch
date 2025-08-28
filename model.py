@@ -62,21 +62,25 @@ class GPTAttention(nn.Module):
         return atten_score
     
     def _create_contextualized_embeds(self, atten_score, value):
-        contextulized_embeds = atten_score @ value # (b, n_head, seq, seq) * (b, n_head, seq, d_model) -> (b, n_head, seq, d_model)
-        contextulized_embeds = contextulized_embeds.transpose(1, 2).contiguous().view(self.batch_size, self.seq_len, self.config.n_heads * self.config.head_dim)
+        contextulized_embeds = atten_score @ value # (b, n_head, seq, seq) * (b, n_head, seq, head_dim) -> (b, n_head, seq, head_dim)
+        contextulized_embeds = contextulized_embeds.transpose(1, 2).contiguous().view(self.batch_size, self.seq_len, self.config.n_heads * self.head_dim)
         return contextulized_embeds
         
     def forward(self, x: torch.Tensor):
         self.batch_size, self.seq_len = x.shape[0], x.shape[1]
+        
+        assert self.config.d_model % self.config.n_heads == 0, "d_model should divisible by n_heads"
+        
+        self.head_dim = self.config.d_model // self.config.n_heads
         
         query = self.Q_w(x)
         key = self.K_w(x)
         value = self.V_w(x)
         
         # (b, s, d_model) -> view -> (batch_size, seq_len, num_head, head_dim) -> permute ->(b, num_head, s, head_dim)
-        query = query.view(self.batch_size, self.seq_len, self.config.n_heads, self.config.head_dim).transpose(1, 2)
-        key = key.view(self.batch_size, self.seq_len, self.config.n_heads, self.config.head_dim).transpose(1, 2)
-        value = value.view(self.batch_size, self.seq_len, self.config.n_heads, self.config.head_dim).transpose(1, 2)
+        query = query.view(self.batch_size, self.seq_len, self.config.n_heads, self.head_dim).transpose(1, 2)
+        key = key.view(self.batch_size, self.seq_len, self.config.n_heads, self.head_dim).transpose(1, 2)
+        value = value.view(self.batch_size, self.seq_len, self.config.n_heads, self.head_dim).transpose(1, 2)
         
         atten_score = self._calc_atten_score(query, key)
         atten_score = self._mask_atten_scores(atten_score, self.seq_len)
