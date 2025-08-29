@@ -64,9 +64,8 @@ class GPTAttention(nn.Module):
         return atten_score
     
     def _create_contextualized_embeds(self, atten_score, value):
-        contextulized_embeds = atten_score @ value # (b, n_head, seq, seq) * (b, n_head, seq, head_dim) -> (b, n_head, seq, head_dim)
-        contextulized_embeds = contextulized_embeds.transpose(1, 2).contiguous().view(self.batch_size, self.seq_len, self.config.n_heads * self.head_dim)
-        return contextulized_embeds
+        ctx_embd = atten_score @ value # (b, n_head, seq, seq) * (b, n_head, seq, head_dim) -> (b, n_head, seq, head_dim)
+        return ctx_embd
         
     def forward(self, x: torch.Tensor):
         self.batch_size, self.seq_len = x.shape[0], x.shape[1]
@@ -84,11 +83,15 @@ class GPTAttention(nn.Module):
         key = key.view(self.batch_size, self.seq_len, self.config.n_heads, self.head_dim).transpose(1, 2)
         value = value.view(self.batch_size, self.seq_len, self.config.n_heads, self.head_dim).transpose(1, 2)
         
-        atten_score = self._calc_atten_score(query, key)
-        atten_score = self._mask_atten_scores(atten_score, self.seq_len)
-        atten_score = F.softmax(atten_score, dim=-1)
-        contextualized_embed = self._create_contextualized_embeds(atten_score, value)
-        return self.O_w(contextualized_embed)
+        # These 4 lines can be replaced by flash attention
+        # atten_score = self._calc_atten_score(query, key)
+        # atten_score = self._mask_atten_scores(atten_score, self.seq_len)
+        # atten_score = F.softmax(atten_score, dim=-1)
+        # contextualized_embed = self._create_contextualized_embeds(atten_score, value)
+        
+        ctx_embd = F.scaled_dot_product_attention(query, key, value, is_causal=True)
+        ctx_embd = ctx_embd.transpose(1, 2).contiguous().view(self.batch_size, self.seq_len, self.config.n_heads * self.head_dim)
+        return self.O_w(ctx_embd)
 
 
 class DecoderBlock(nn.Module):
