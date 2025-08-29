@@ -10,8 +10,10 @@ from utils import load_checkpoint, save_checkpoint
 from tqdm import tqdm
 from torch.utils.tensorboard import SummaryWriter
 import time
-
+import math
 torch.set_float32_matmul_precision('high') # all matmul become fast (not how weigts store)
+
+
 
 def train(model, optimizer,config, loader, epoch, writer, save_step, save_path):
     progress_bar = tqdm(enumerate(loader), leave=True, desc=f'Epoch {epoch}: ', total=len(loader), dynamic_ncols=True)
@@ -19,7 +21,7 @@ def train(model, optimizer,config, loader, epoch, writer, save_step, save_path):
         global_step = epoch*len(loader) + step
         x, y = x.to(config.device), y.to(config.device)
         
-        # t1 = time.time()
+        t1 = time.time()
         
         optimizer.zero_grad(set_to_none=True)
         with torch.autocast(device_type=config.device, dtype=torch.bfloat16):
@@ -29,15 +31,20 @@ def train(model, optimizer,config, loader, epoch, writer, save_step, save_path):
         
         loss.backward()
         norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+        
+        lr = get_lr(step)
+        for params in optimizer.param_groups:
+            params['lr'] = lr
+            
         optimizer.step()
         
-        # torch.cuda.synchronize()
-        # t2 = time.time()
-        # time_took = (t2 - t1) * 1000 # time will be in milliseconds
-        # token_per_sec = (config.batch_size * config.context_len)/ (t2 - t1)
-        # print(f"token per second {token_per_sec} and time took {time_took}")
+        torch.cuda.synchronize()
+        t2 = time.time()
+        time_took = (t2 - t1) * 1000 # time will be in milliseconds
+        token_per_sec = (config.batch_size * config.context_len)/ (t2 - t1)
+        print(f"token per second {token_per_sec} and time took {time_took}")
         
-        progress_bar.set_postfix(loss=loss.item(), grad_norm=norm.item())
+        progress_bar.set_postfix(loss=f"{loss.item(): .6f}", grad_norm=f"{norm.item(): .4f}", lr=f"{lr: .4f}")
         writer.add_scalar('Training loss', loss.item(), global_step)
         writer.add_scalar('Gradient norm', norm.item(), global_step)
         
@@ -46,7 +53,27 @@ def train(model, optimizer,config, loader, epoch, writer, save_step, save_path):
                 model=model,
                 optimizer=optimizer)
         
+
+
+
+def get_lr(it):
+        if it < warmup_steps:
+            return max_lr * ((it + 1) / warmup_steps)
         
+        if it > max_steps:
+            return min_lr
+        
+        decay_ratio = (it - warmup_steps) / (max_steps - warmup_steps) #initially small number then become close to 1
+        assert 0<=decay_ratio<=1
+        coeff = 0.5 * (1.0 + math.cos(math.pi * decay_ratio))
+        return min_lr + coeff * (max_lr - min_lr)        
+
+
+config = GptConfig(vocab_size=50304)
+warmup_steps = 10
+max_lr = config.lr
+min_lr = max_lr * 0.10
+max_steps = 50
 
 def main():
     device = 'cpu'
@@ -57,13 +84,14 @@ def main():
 
     print(f'Using Device: {device}')
     
-    config = GptConfig(vocab_size=50304)
     tokenizer = tiktoken.get_encoding('gpt2')
     model = GPT(config).to(config.device)
+    optimizer = model.configure_optimizer(config.lr, weight_decay=config.weight_decay)
     model = torch.compile(model)
     loader = get_data_loader(tokenizer, config.context_len, config.batch_size, num_workers=4, pin_memory=True)
     print(f'Total number of samples: {len(loader)}')
-    optimizer = optim.AdamW(model.parameters(), lr=config.lr, betas=(.9, 0.95), weight_decay=0.1)
+    # optimizer = optim.AdamW(model.parameters(), lr=config.lr, betas=(.9, 0.95), weight_decay=0.1)
+    
     save_path = 'checkpoints'
     save_step = 500
     save_path = 'checkpoints/ckpt.pt'

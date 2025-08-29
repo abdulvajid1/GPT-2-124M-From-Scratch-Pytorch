@@ -5,7 +5,8 @@ from config import GptConfig
 import math 
 from huggingface_hub import PyTorchModelHubMixin
 import tiktoken
-
+import inspect
+import torch.optim as optim
 
 class PositionalEncoding(nn.Module):
     def __init__(self, config: GptConfig):
@@ -173,7 +174,31 @@ class GPT(nn.Module, PyTorchModelHubMixin):
         out = self.tokenizer.decode_batch(idx)
         return out
     
-    
+    def configure_optimizer(self, lr, weight_decay):
+        
+        params = {n: p for n, p in self.named_parameters()}
+        params = {n: p for n, p in params.items() if p.requires_grad}
+
+        decay_params = [p for n, p in params.items() if p.dim() >= 2]
+        nodecay_params = [p for n, p in params.items() if p.dim() < 2]
+
+        param_grps = [
+            {'params': decay_params, 'weight_decay': weight_decay},
+            {'params': nodecay_params, 'weight_decay': 0.0}
+        ]
+
+        num_decay_params = sum(p.numel() for p in decay_params)
+        num_nodecay_params = sum(p.numel() for p in nodecay_params)
+
+        print(f"total num of decay parms :{num_decay_params} with num tensor of {len(decay_params)}")
+        print(f"total num of no decay parms :{num_nodecay_params} with num tensor of {len(nodecay_params)}")
+
+        fused_available = "fused" in inspect.signature(torch.optim.AdamW).parameters
+        use_fused = fused_available and 'cuda' in self.config.device
+        print(f'Using fused: {use_fused}')
+        optimizer = optim.AdamW(param_grps, lr=lr, betas=(.9, 0.95), eps=1e-8, fused=use_fused)
+
+        return optimizer
     
 def main():
     config = GptConfig()
