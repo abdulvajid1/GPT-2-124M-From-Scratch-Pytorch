@@ -1,5 +1,8 @@
 from torch.utils.data import Dataset, DataLoader
 import torch
+from datasets import load_from_disk
+
+dataset_path = "pretrain_data\openwebtext_tokenized"
 
 class GPTDataset(Dataset):
     def __init__(self, path='input.txt', context_len=1024, tokenizer=None):
@@ -20,23 +23,24 @@ class GPTDataset(Dataset):
         y = index_data[1:]
         return x, y
 
-def get_data_loader(tokenizer,context_len=1024, batch_size=8, shuffle=True, pin_memory=False,num_workers=1):
-    dataset = GPTDataset(context_len=context_len, tokenizer=tokenizer)
+def get_data_loader(tokenizer=None,context_len=1024, batch_size=8, shuffle=True, pin_memory=False,num_workers=1):
+    # dataset = GPTDataset(context_len=context_len, tokenizer=tokenizer)
+    dataset = load_from_disk(dataset_path)
+    dataset.set_format('torch')
     data_loader = DataLoader(dataset, batch_size, shuffle=shuffle, pin_memory=pin_memory, num_workers=num_workers)
     return data_loader
-    
-    
 
 
 def main():
     import tiktoken
-    tokenizer = tiktoken.get_encoding('gpt2')
-    dataset = GPTDataset(tokenizer=tokenizer, context_len=5)
-    print(dataset[5])
+    # tokenizer = tiktoken.get_encoding('gpt2')
+    # dataset = GPTDataset(tokenizer=tokenizer, context_len=5)
+    dataset = load_from_disk(dataset_path)
+    # print(dataset[5])
     print(f"{len(dataset)}")
-    loader = get_data_loader(tokenizer)
-    for x, y in loader:
-        print(x, y)
+    loader = get_data_loader()
+    for batch in loader:
+        print(batch['input'].shape, batch['labels'].shape)
         break
     
     
