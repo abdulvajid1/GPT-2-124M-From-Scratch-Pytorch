@@ -28,6 +28,15 @@ MIN_LR = MAX_LR * 0.10
 MAX_STEPS = 10000
 SAVE_STEP = 1
 SAVE_PATH = os.path.join(os.getcwd(), 'checkpoints')
+logging_path = os.path.join(os.getcwd(), 'runs')
+
+# Create the checkpoint path if it's not exist
+if not os.path.exists(SAVE_PATH):
+    os.makedirs(SAVE_PATH, exist_ok=True)
+    
+# logging dir
+if not os.path.exists(logging_path):
+    os.makedirs(logging_path, exist_ok=True)
 
 
 
@@ -165,10 +174,7 @@ def main():
     
     # Model & tokenizer 
     tokenizer = tiktoken.get_encoding('gpt2')
-    model = GPT(config).to(config.device)
-    optimizer = model.configure_optimizer(MAX_LR, weight_decay=config.weight_decay)
-    model = torch.compile(model)
-    
+
     # Loader
     loader = get_data_loader(tokenizer, config.context_len, config.batch_size, num_workers=2, pin_memory=True)
     print(f'Total number of batches: {len(loader)}')
@@ -185,16 +191,17 @@ def main():
         
         model, optimizer, global_step = load_checkpoint(config=config, 
                                       checkpoint_path=checkpoint_path,  
-                                      optimizer=optimizer,
                                       device=device) # Load model, optimizer return global step if exist else return 0
         model = torch.compile(model)
         print(f"Loading model from step {global_step}")
+        
     else:
         # initialize model
         model = GPT(config).to(config.device)
         optimizer = model.configure_optimizer(MAX_LR, weight_decay=config.weight_decay)
         model = torch.compile(model)
         global_step = 0
+        print('Starting Fresh training from global step 0')
         
     
         

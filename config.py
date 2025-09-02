@@ -16,6 +16,7 @@ class GptConfig(PretrainedConfig):
         batch_size=8,
         load_checkpoint=True,
         weight_decay=0.1,
+        lr=6e-4,
         **kwargs
     ):
         super().__init__(**kwargs)
@@ -31,3 +32,4 @@ class GptConfig(PretrainedConfig):
         self.batch_size = batch_size
         self.load_checkpoint = load_checkpoint
         self.weight_decay = weight_decay
+        self.lr = lr
