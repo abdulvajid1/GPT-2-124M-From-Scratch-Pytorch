@@ -17,9 +17,8 @@ class GptConfig:
     device: str = device
     intermidiate_size:int = d_model * 4
     n_epoch:int = 5
-    batch_size:int = 4
-    load_checkpoint = False
+    batch_size:int = 8
+    load_checkpoint = True
     weight_decay:float = 0.1
-    grad_accumulation: int = 4
     
     

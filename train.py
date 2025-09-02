@@ -13,17 +13,17 @@ import time
 import math
 torch.set_float32_matmul_precision('high') # all matmul become fast (not how weigts store)
 
-WARMUP_STEPS = 10
+WARMUP_STEPS = 50
 MAX_LR = 6e-4
 MIN_LR = MAX_LR * 0.10
 MAX_STEPS = 10000
-SAVE_STEP = 500
+SAVE_STEP = 1
 SAVE_PATH = 'checkpoints/ckpt.pt'
 
 
 
 
-def train(model, optimizer, config: GptConfig, loader, epoch, grad_accumulation_step, writer, SAVE_STEP, SAVE_PATH, max_step):
+def train(model, optimizer, config: GptConfig, loader, epoch, grad_accumulation_step, writer, SAVE_STEP, SAVE_PATH, max_step, global_step=None):
     progress_bar = tqdm.tqdm(range(max_step), leave=True, desc=f'Epoch {epoch}: ', total=len(range(max_step)), dynamic_ncols=True)
     loader_iter = iter(loader)
     
@@ -64,11 +64,12 @@ def train(model, optimizer, config: GptConfig, loader, epoch, grad_accumulation_
         
         optimizer.step()
         optimizer.zero_grad(set_to_none=True)
-        global_step = epoch*len(loader) + step
+        global_step += 1
+        
             
         
         # Update learning rate    
-        lr = get_lr(step)
+        lr = get_lr(global_step)
         for params in optimizer.param_groups:
             params['lr'] = lr
             
@@ -81,12 +82,14 @@ def train(model, optimizer, config: GptConfig, loader, epoch, grad_accumulation_
         if (step+1) % SAVE_STEP == 0:
             save_checkpoint(path=SAVE_PATH,
                 model=model,
-                optimizer=optimizer)
+                optimizer=optimizer,
+                global_step=global_step)
         
         
         progress_bar.set_postfix(loss=f"{loss_accm.item(): .6f}",
                                  norm=f"{norm: .4f}",
-                                 new_lr=f"next_lr: {lr}")
+                                 new_lr=f"{lr: .5f}",
+                                 global_step=global_step)
 
 
 
@@ -157,12 +160,13 @@ def main():
     
     # Load Checkpoint
     if config.load_checkpoint:
-        load_checkpoint(path=SAVE_PATH, model=model, optimizer=optimizer)
+        global_step = load_checkpoint(path=SAVE_PATH, model=model, optimizer=optimizer) # Load model, optimizer return global step if exist else return 0
+        print(f"Loading model from step {global_step}")
         
         
     # Train 
     for epoch in range(config.n_epoch):
-        train(model, optimizer,config, loader, epoch, grad_accumulation_step, writer, SAVE_STEP, SAVE_PATH, max_step=MAX_STEPS) # will change max_step to num accumualted batches (data is insufficient to set such amount of batch size)
+        train(model, optimizer,config, loader, epoch, grad_accumulation_step, writer, SAVE_STEP, SAVE_PATH, max_step=MAX_STEPS, global_step=global_step) # will change max_step to num accumualted batches (data is insufficient to set such amount of batch size)
         
         # generate sample after each epoch
         sample_input = ['you are a'] * 5
