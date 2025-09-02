@@ -1,8 +1,12 @@
 from torch.utils.data import Dataset, DataLoader
 import torch
-from datasets import load_from_disk
+from datasets import load_from_disk, load_dataset
+import os
+# dataset_path = "pretrain_data\openwebtext_tokenized"
 
-dataset_path = "pretrain_data\openwebtext_tokenized"
+dataset_path = os.path.join(os.getcwd(), 'pretrain_data', "openwebtext_tokenized")
+    
+
 
 class GPTDataset(Dataset):
     def __init__(self, path='input.txt', context_len=1024, tokenizer=None):
@@ -25,7 +29,11 @@ class GPTDataset(Dataset):
 
 def get_data_loader(tokenizer=None,context_len=1024, batch_size=8, shuffle=True, pin_memory=False,num_workers=1):
     # dataset = GPTDataset(context_len=context_len, tokenizer=tokenizer)
-    dataset = load_from_disk(dataset_path)
+    if os.path.exists(dataset_path):
+        dataset = load_from_disk(dataset_path)
+    else:
+        dataset = load_dataset('Abdulvajid/gpt2-dataset', split='train', data_dir=dataset_path)
+        
     dataset.set_format('torch')
     data_loader = DataLoader(dataset, batch_size, shuffle=shuffle, pin_memory=pin_memory, num_workers=num_workers)
     return data_loader

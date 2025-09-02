@@ -158,6 +158,7 @@ def calc_grad_accumulation_step(desired_batch_size, micro_batch_size_token):
 def get_argparser():
     parser = argparse.ArgumentParser()
     parser.add_argument("--load_checkpoint_path", type=str)
+    parser.add_argument("--load_checkpoint", type=bool, default=True)
     return parser.parse_args()
     
 
@@ -183,7 +184,7 @@ def main():
     writer = SummaryWriter(log_dir='runs')
     
     # Load Model if exist
-    if config.load_checkpoint:
+    if args.load_checkpoint:
         
         # create full path
         checkpoint_path = os.path.join(SAVE_PATH, args.load_checkpoint_path)
