@@ -7,6 +7,7 @@ from huggingface_hub import PyTorchModelHubMixin
 import tiktoken
 import inspect
 import torch.optim as optim
+from transformers import PreTrainedModel
 
 class PositionalEncoding(nn.Module):
     def __init__(self, config: GptConfig):
@@ -110,9 +111,11 @@ class DecoderBlock(nn.Module):
         return x
     
 
-class GPT(nn.Module, PyTorchModelHubMixin):
+class GPT(PreTrainedModel):
+    config_class = GptConfig
+    
     def __init__(self, config: GptConfig):
-        super().__init__()
+        super().__init__(config)
         self.tokenizer = tiktoken.get_encoding('gpt2')
         self.config = config
         self.tok_embed = nn.Embedding(config.vocab_size, config.d_model)
@@ -123,6 +126,12 @@ class GPT(nn.Module, PyTorchModelHubMixin):
         self.final_layer.weight = self.tok_embed.weight
         
         self.apply(self._init_weights)
+        
+    # 👇 tell HF that these weights are intentionally tied
+    _tied_weights_keys = ["final_layer.weight", "tok_embed.weight"]
+    
+    def tie_weights(self):
+        self.final_layer.weight = self.tok_embed.weight
     
     def _init_weights(self, module):
         if isinstance(module, nn.Linear):

@@ -135,9 +135,8 @@ def calc_grad_accumulation_step(desired_batch_size, micro_batch_size_token):
     
 
 def main():
-    config = GptConfig(vocab_size=50304)
     device = get_device()
-    
+    config = GptConfig(vocab_size=50304, device=device)
     
     # Gradient Accumulation Step
     max_batch_size_token = 524288 # a good power of two number close 0.5M token batch size according gpt paper
