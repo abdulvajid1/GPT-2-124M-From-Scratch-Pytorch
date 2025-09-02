@@ -6,11 +6,20 @@ import torch.optim as optim
 from dataset import get_data_loader
 from model import GPT
 import tiktoken
-from utils import load_checkpoint, save_checkpoint
+from utils import load_checkpoint, save_optimizer
 import tqdm
 from torch.utils.tensorboard import SummaryWriter
 import time
 import math
+import os
+from huggingface_hub import login
+from dotenv import load_dotenv
+import argparse
+
+load_dotenv()
+login_token = os.getenv('HuggingFaceToken')
+login(login_token)
+
 torch.set_float32_matmul_precision('high') # all matmul become fast (not how weigts store)
 
 WARMUP_STEPS = 50
@@ -18,7 +27,7 @@ MAX_LR = 6e-4
 MIN_LR = MAX_LR * 0.10
 MAX_STEPS = 10000
 SAVE_STEP = 1
-SAVE_PATH = 'checkpoints/ckpt.pt'
+SAVE_PATH = os.path.join(os.getcwd(), 'checkpoints')
 
 
 
@@ -80,8 +89,14 @@ def train(model, optimizer, config: GptConfig, loader, epoch, grad_accumulation_
         
         # Checkpointing
         if (step+1) % SAVE_STEP == 0:
-            save_checkpoint(path=SAVE_PATH,
-                model=model,
+            
+            # Create new checkpoint path for updated model
+            checkpoint_path = os.path.join(SAVE_PATH,f'ckpt_{global_step}')
+            save_path, _ = os.path.split(checkpoint_path)
+            os.makedirs(checkpoint_path, exist_ok=True)
+            
+            model.save_pretrained(config=config, save_directory=checkpoint_path)
+            save_optimizer(path=save_path,
                 optimizer=optimizer,
                 global_step=global_step)
         
@@ -130,11 +145,15 @@ def calc_grad_accumulation_step(desired_batch_size, micro_batch_size_token):
     print(f'Max Micro Batch size that can fit on gpu : {micro_batch_size_token}')
     print(f'Grad accumualtion step needed for Desired batch size (MAX_BATCH/MICRO BATCH) : {grad_accumulation_step}')
     return grad_accumulation_step
-    
-    
+
+def get_argparser():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--load_checkpoint_path", type=str)
+    return parser.parse_args()
     
 
 def main():
+    args = get_argparser()
     device = get_device()
     config = GptConfig(vocab_size=50304, device=device)
     
@@ -157,10 +176,27 @@ def main():
     # Tensorboard Login
     writer = SummaryWriter(log_dir='runs')
     
-    # Load Checkpoint
+    # Load Model if exist
     if config.load_checkpoint:
-        global_step = load_checkpoint(path=SAVE_PATH, model=model, optimizer=optimizer) # Load model, optimizer return global step if exist else return 0
+        
+        # create full path
+        checkpoint_path = os.path.join(SAVE_PATH, args.load_checkpoint_path)
+        assert os.path.exists(checkpoint_path), f'{checkpoint_path} file does not exist {os.path.exists(checkpoint_path)}' # checks if file exist
+        
+        model, optimizer, global_step = load_checkpoint(config=config, 
+                                      checkpoint_path=checkpoint_path,  
+                                      optimizer=optimizer,
+                                      device=device) # Load model, optimizer return global step if exist else return 0
+        model = torch.compile(model)
         print(f"Loading model from step {global_step}")
+    else:
+        # initialize model
+        model = GPT(config).to(config.device)
+        optimizer = model.configure_optimizer(MAX_LR, weight_decay=config.weight_decay)
+        model = torch.compile(model)
+        global_step = 0
+        
+    
         
         
     # Train 

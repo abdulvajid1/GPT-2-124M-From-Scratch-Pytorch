@@ -1,15 +1,31 @@
 import torch
 import tiktoken
+import os
+from model import GPT
 
-def save_checkpoint(path, model, optimizer, global_step):
-    torch.save({'model_state': model.state_dict(), 'optim_state': optimizer.state_dict(), 'global_step': global_step}, path)
+SAVE_PATH = os.path.join(os.path.dirname(__file__), 'checkpoints')
+OPTIM_PATH = os.path.join(SAVE_PATH, 'optimizer.pt')
 
-def load_checkpoint(model, optimizer=None, path='checkpoints/ckpt.pt',):
-    checkpoint = torch.load(path)
-    model.load_state_dict(checkpoint['model_state'])
-    if optimizer!=None:
-        optimizer.load_state_dict(checkpoint['optim_state'])
+def save_optimizer(optimizer, global_step, path):
+    path = os.path.join(SAVE_PATH, 'optimizer.pt')    
+    torch.save({'optim_state': optimizer.state_dict(), 'global_step': global_step}, path)
 
-    global_step = checkpoint.get('global_step', 0)
+def load_checkpoint(config, optimizer, checkpoint_path, device='cpu'):
     
-    return global_step 
+    # Load model from full path
+    model = GPT.from_pretrained(checkpoint_path,config=config).to(device)
+    
+    # Load optimizer from base path
+    save_path, _ = os.path.split(checkpoint_path)
+    optimizer_path = os.path.join(save_path, 'optimizer.pt')
+    optimizer_checkpoint = torch.load(optimizer_path)
+    optimizer.load_state_dict(optimizer_checkpoint['optim_state'])
+    
+    # load global step if exist
+    global_step = optimizer_checkpoint.get('global_step', 0)
+    return model, optimizer, global_step 
+
+
+if __name__ == '__main__':
+    SAVE_PATH = os.path.join(os.path.dirname(__file__), 'checkpoints')
+    import code; code.interact(local=locals())
