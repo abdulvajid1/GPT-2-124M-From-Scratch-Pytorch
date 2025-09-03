@@ -390,7 +390,6 @@ dependencies = [
     { name = "tiktoken" },
     { name = "tqdm" },
     { name = "transformers" },
-    { name = "triton-windows" },
 ]
 
 [package.metadata]
@@ -405,7 +404,6 @@ requires-dist = [
     { name = "tiktoken", specifier = ">=0.11.0" },
     { name = "tqdm", specifier = ">=4.67.1" },
     { name = "transformers", specifier = ">=4.56.0" },
-    { name = "triton-windows", specifier = ">=3.4.0.post20" },
 ]
 
 [[package]]
@@ -1489,17 +1487,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/98/41/6ba7c2eafa839069f1f949c30cd22e791b14b90c7af8cb0c65cc47702dca/transformers-4.56.0-py3-none-any.whl", hash = "sha256:bacf539c38dd850690856881c4974321af93a22f2ee96bcc994741a2121d8e71", size = 11607938, upload-time = "2025-08-29T18:23:33.92Z" },
 ]
 
-[[package]]
-name = "triton-windows"
-version = "3.4.0.post20"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "setuptools" },
-]
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/90/e9/fa04946d9b9ee56512f1d792c3135190923ace949d4ca8fd1eed78ab5b2f/triton_windows-3.4.0.post20-cp312-cp312-win_amd64.whl", hash = "sha256:68b252e44c8e398c5510cde9cc80afcc2223adc31c458357be580898ed8a6d56", size = 42680972, upload-time = "2025-07-31T02:19:33.175Z" },
-    { url = "https://files.pythonhosted.org/packages/a2/cc/5bcad4a71bcab57f9b1c95fe20b91bd294b86f988007072a6e01fa3f9591/triton_windows-3.4.0.post20-cp313-cp313-win_amd64.whl", hash = "sha256:fa55697a8c5f6f92da7efa982efada10e34451557b2c7b38990ecbb2d07b1c91", size = 42681697, upload-time = "2025-07-31T02:19:43.418Z" },
-]
 
 [[package]]
 name = "typing-extensions"

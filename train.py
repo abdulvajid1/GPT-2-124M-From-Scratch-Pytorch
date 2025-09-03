@@ -15,6 +15,13 @@ import os
 from huggingface_hub import login
 from dotenv import load_dotenv
 import argparse
+from huggingface_hub import snapshot_download
+
+# For a model
+repo_id = "Abdulvajid/gpt2-from-scratch"  # Replace with the desired model's repo ID
+local_dir = "./"  # Local directory to save the model
+
+
 
 load_dotenv()
 login_token = os.getenv('HuggingFaceToken')
@@ -98,6 +105,7 @@ def train(model, optimizer, config: GptConfig, loader, epoch, grad_accumulation_
         
         # Checkpointing
         if (step+1) % SAVE_STEP == 0:
+            print(f'Saving the model after {global_step} steps')
             
             # Create new checkpoint path for updated model
             checkpoint_path = os.path.join(SAVE_PATH,f'ckpt_{global_step}')
@@ -158,7 +166,8 @@ def calc_grad_accumulation_step(desired_batch_size, micro_batch_size_token):
 def get_argparser():
     parser = argparse.ArgumentParser()
     parser.add_argument("--load_checkpoint_path", type=str)
-    parser.add_argument("--load_checkpoint", type=bool, default=True)
+    parser.add_argument("--load_checkpoint", action='store_true', default=False)
+    parser.add_argument("--download_checkpoint", action='store_true', default=False)
     return parser.parse_args()
     
 
@@ -166,6 +175,9 @@ def main():
     args = get_argparser()
     device = get_device()
     config = GptConfig(vocab_size=50304, device=device)
+    
+    if args.download_checkpoint:
+        snapshot_download(repo_id=repo_id, local_dir=local_dir)
     
     # Gradient Accumulation Step
     max_batch_size_token = 524288 # a good power of two number close 0.5M token batch size according gpt paper

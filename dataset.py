@@ -32,7 +32,7 @@ def get_data_loader(tokenizer=None,context_len=1024, batch_size=8, shuffle=True,
     if os.path.exists(dataset_path):
         dataset = load_from_disk(dataset_path)
     else:
-        dataset = load_dataset('Abdulvajid/gpt2-dataset', split='train', data_dir=dataset_path)
+        dataset = load_dataset('Abdulvajid/gpt2-dataset', split='train')
         
     dataset.set_format('torch')
     data_loader = DataLoader(dataset, batch_size, shuffle=shuffle, pin_memory=pin_memory, num_workers=num_workers)
