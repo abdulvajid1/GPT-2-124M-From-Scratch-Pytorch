@@ -17,15 +17,6 @@ from dotenv import load_dotenv
 import argparse
 from huggingface_hub import snapshot_download
 
-# For a model
-repo_id = "Abdulvajid/gpt2-from-scratch"  # Replace with the desired model's repo ID
-local_dir = "./"  # Local directory to save the model
-
-
-
-load_dotenv()
-login_token = os.getenv('HuggingFaceToken')
-login(login_token)
 
 torch.set_float32_matmul_precision('high') # all matmul become fast (not how weigts store)
 
@@ -45,8 +36,8 @@ if not os.path.exists(SAVE_PATH):
 if not os.path.exists(logging_path):
     os.makedirs(logging_path, exist_ok=True)
 
-
-
+# For a model
+repo_id = "Abdulvajid/gpt2-from-scratch"  # Replace with the desired model's repo ID
 
 def train(model, optimizer, config: GptConfig, loader, epoch, grad_accumulation_step, writer, SAVE_STEP, SAVE_PATH, max_step, global_step=None):
     progress_bar = tqdm.tqdm(range(max_step), leave=True, desc=f'Epoch {epoch}: ', total=len(range(max_step)), dynamic_ncols=True)
@@ -165,8 +156,8 @@ def calc_grad_accumulation_step(desired_batch_size, micro_batch_size_token):
 
 def get_argparser():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--load_checkpoint_path", type=str)
-    parser.add_argument("--load_checkpoint", action='store_true', default=False)
+    # parser.add_argument("--load_checkpoint_path", type=str)
+    parser.add_argument("--load_checkpoint", type=str, default=None)
     parser.add_argument("--download_checkpoint", action='store_true', default=False)
     return parser.parse_args()
     
@@ -177,7 +168,7 @@ def main():
     config = GptConfig(vocab_size=50304, device=device)
     
     if args.download_checkpoint:
-        snapshot_download(repo_id=repo_id, local_dir=local_dir)
+        snapshot_download(repo_id=repo_id, local_dir=SAVE_PATH)
     
     # Gradient Accumulation Step
     max_batch_size_token = 524288 # a good power of two number close 0.5M token batch size according gpt paper
@@ -196,10 +187,10 @@ def main():
     writer = SummaryWriter(log_dir='runs')
     
     # Load Model if exist
-    if args.load_checkpoint:
+    if args.load_checkpoint != None:
         
         # create full path
-        checkpoint_path = os.path.join(SAVE_PATH, args.load_checkpoint_path)
+        checkpoint_path = os.path.join(SAVE_PATH, args.load_checkpoint)
         assert os.path.exists(checkpoint_path), f'{checkpoint_path} file does not exist {os.path.exists(checkpoint_path)}' # checks if file exist
         
         model, optimizer, global_step = load_checkpoint(config=config, 
