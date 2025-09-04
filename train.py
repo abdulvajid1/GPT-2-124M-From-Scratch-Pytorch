@@ -182,7 +182,7 @@ def main():
     tokenizer = tiktoken.get_encoding('gpt2')
 
     # Loader
-    loader = get_data_loader(tokenizer, config.context_len, config.batch_size, num_workers=2, pin_memory=True)
+    loader = get_data_loader(config.batch_size, num_workers=2, pin_memory=True)
     print(f'Total number of batches: {len(loader)}')
     
     # Tensorboard Login

@@ -1,7 +1,7 @@
 Gpt-From-Scratch:
     Todo:
-        ☐ Set up easy clone and start training @critical
-            ☐ set up correct requirements.txt
-            ☐ loading fineweb-edu in dataset.py
+        ✔ Set up easy clone and start training @started(25-09-04 20:10) @done(25-09-04 20:10) @lasted(10s)
+            ✔ set up correct requirements.txt @started(25-09-04 20:08) @done(25-09-04 20:09) @lasted(1m52s)
+            ✔ loading fineweb-edu in dataset.py @started(25-09-04 20:09) @done(25-09-04 20:09) @lasted(59s)
 
 
