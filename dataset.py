@@ -27,12 +27,8 @@ class GPTDataset(Dataset):
         return x, y
 
 def get_data_loader(batch_size=8, shuffle=True, pin_memory=False,num_workers=1):
-    if os.path.exists(dataset_path):
-        dataset = load_from_disk(dataset_path)
-    else:
-        os.makedirs(dataset_path, exist_ok=True)
-        dataset = load_dataset('Abdulvajid/fineweb-sample10BT', split='train', cache_dir=dataset_path)
-        
+    os.makedirs(dataset_path, exist_ok=True)
+    dataset = load_dataset('Abdulvajid/fineweb-sample10BT', split='train', cache_dir=dataset_path)
     dataset.set_format('torch')
     data_loader = DataLoader(dataset, batch_size, shuffle=shuffle, pin_memory=pin_memory, num_workers=num_workers)
     return data_loader
