@@ -9,6 +9,9 @@ import inspect
 import torch.optim as optim
 from transformers import PreTrainedModel
 
+# Model architecture
+# 2025-09-04-19-34-32.png
+
 class PositionalEncoding(nn.Module):
     def __init__(self, config: GptConfig):
         super().__init__()

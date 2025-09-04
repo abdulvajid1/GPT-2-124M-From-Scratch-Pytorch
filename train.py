@@ -24,19 +24,19 @@ WARMUP_STEPS = 50
 MAX_LR = 6e-4
 MIN_LR = MAX_LR * 0.10
 MAX_STEPS = 10000
-SAVE_STEP = 1
+SAVE_STEP = 50
 SAVE_PATH = os.path.join(os.getcwd(), 'checkpoints')
 logging_path = os.path.join(os.getcwd(), 'runs')
 
-# Create the checkpoint path if it's not exist
+# Create the checkpoint Dir
 if not os.path.exists(SAVE_PATH):
     os.makedirs(SAVE_PATH, exist_ok=True)
     
-# logging dir
+# Mkdir Logging dir
 if not os.path.exists(logging_path):
     os.makedirs(logging_path, exist_ok=True)
 
-# For a model
+# HF Hub Checkpoint
 repo_id = "Abdulvajid/gpt2-from-scratch"  # Replace with the desired model's repo ID
 
 def train(model, optimizer, config: GptConfig, loader, epoch, grad_accumulation_step, writer, SAVE_STEP, SAVE_PATH, max_step, global_step=None):
@@ -48,12 +48,14 @@ def train(model, optimizer, config: GptConfig, loader, epoch, grad_accumulation_
     
         # Gradient Accumulation   
         for _ in tqdm.trange(grad_accumulation_step, desc='Grad Accm Steps', leave=True, dynamic_ncols=True):
+            
             # Get Next batch, if iteration over start new
             try:
                 batch = next(loader_iter)
             except StopIteration:
                 loader_iter = iter(loader)   # restart loader
                 batch = next(loader_iter)
+                
             x, y = batch['input'].to(config.device), batch['labels'].to(config.device)
             
             
@@ -94,7 +96,7 @@ def train(model, optimizer, config: GptConfig, loader, epoch, grad_accumulation_
         writer.add_scalar('Gradient norm', norm.item(), global_step)
         writer.add_scalar('Learning rate Decay', lr, global_step)
         
-        # Checkpointing
+        # Save Checkpoint
         if (step+1) % SAVE_STEP == 0:
             print(f'Saving the model after {global_step} steps')
             
