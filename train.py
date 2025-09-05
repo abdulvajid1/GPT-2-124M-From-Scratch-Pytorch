@@ -16,7 +16,10 @@ from huggingface_hub import login
 from dotenv import load_dotenv
 import argparse
 from huggingface_hub import snapshot_download
+from save_checkpoint_hf_hub import save_to_hf
 
+# login huggingface for checkpointing
+hf_save_step = 500
 
 torch.set_float32_matmul_precision('high') # all matmul become fast (not how weigts store)
 
@@ -110,6 +113,10 @@ def train(model, optimizer, config: GptConfig, loader, epoch, grad_accumulation_
                 optimizer=optimizer,
                 global_step=global_step)
         
+        # Save to hf
+        if (step + 1) % hf_save_step == 0:
+            save_to_hf(global_step)
+        
         
         progress_bar.set_postfix(loss=f"{loss_accm.item(): .6f}",
                                  norm=f"{norm: .4f}",
@@ -146,11 +153,9 @@ def get_device():
 
 
 def calc_grad_accumulation_step(desired_batch_size, micro_batch_size_token):
-    assert desired_batch_size % micro_batch_size_token == 0
-
-    # Calc grad accumulation step needed.
-    grad_accumulation_step = desired_batch_size // micro_batch_size_token
     
+    assert desired_batch_size % micro_batch_size_token == 0
+    grad_accumulation_step = desired_batch_size // micro_batch_size_token # Calc grad accumulation step needed.
     print(f'Desired total batch_size {desired_batch_size}')
     print(f'Max Micro Batch size that can fit on gpu : {micro_batch_size_token}')
     print(f'Grad accumualtion step needed for Desired batch size (MAX_BATCH/MICRO BATCH) : {grad_accumulation_step}')
@@ -158,7 +163,6 @@ def calc_grad_accumulation_step(desired_batch_size, micro_batch_size_token):
 
 def get_argparser():
     parser = argparse.ArgumentParser()
-    # parser.add_argument("--load_checkpoint_path", type=str)
     parser.add_argument("--load_checkpoint", type=str, default=None)
     parser.add_argument("--download_checkpoint", action='store_true', default=False)
     return parser.parse_args()
@@ -176,7 +180,6 @@ def main():
     max_batch_size_token = 524288 # a good power of two number close 0.5M token batch size according gpt paper
     micro_batch_size_token = (config.batch_size * config.context_len)
     grad_accumulation_step = calc_grad_accumulation_step(max_batch_size_token, micro_batch_size_token)
-    
     
     # Model & tokenizer 
     tokenizer = tiktoken.get_encoding('gpt2')

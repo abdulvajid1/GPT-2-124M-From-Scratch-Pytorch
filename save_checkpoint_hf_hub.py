@@ -2,17 +2,22 @@ from huggingface_hub import upload_folder, upload_large_folder, create_repo
 from huggingface_hub import login
 from dotenv import load_dotenv
 import os
+import shutil
+import pathlib
+import glob
 
+def save_to_hf(global_step):
+    
+    ckpt_path = os.path.join('checkpoints', 'ckpt_*')
+    ckpt_list = set(glob.glob(ckpt_path))
+    global_save_step = (global_step // 100) * 100
+    
+    ckpt_save = {os.path.join('checkpoints', f"ckpt_{global_save_step}")}
+    rm_ckpt_list = ckpt_list.difference(ckpt_save)
+    
+    for ckpt in rm_ckpt_list:
+        shutil.rmtree(ckpt)
 
-def main():
-    load_dotenv()
-    hf_token = os.getenv("HuggingFaceToken")
-    if hf_token:
-        login(hf_token)
-    else:
-        login()
-
-    create_repo(repo_id='Abdulvajid/gpt2-dataset', repo_type='dataset', exist_ok=True)
     create_repo(repo_id='Abdulvajid/gpt2-from-scratch', repo_type='model', exist_ok=True)
 
     # Upload everything in current dir

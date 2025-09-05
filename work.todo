@@ -7,3 +7,4 @@ Gpt-From-Scratch:
             ☐ Fabric
             ☐ pytorch native DDP
             ☐ Accelerate DDP
+        ☐ --download_checkpoint should check if the checkpoint already exist

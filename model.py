@@ -212,6 +212,19 @@ class GPT(PreTrainedModel):
 
         return optimizer
     
+    def num_parameters(self):
+        trainable_params = 0
+        non_trainable_params = 0
+        
+        for params in self.parameters():
+            if params.requires_grad:
+                trainable_params+=params.numel()
+            else:
+                non_trainable_params+=params.numel()
+            
+        print(f"""Trainable Parameteres {trainable_params}
+            Non-Trainable Parameteres {non_trainable_params}""")
+    
 def main():
     config = GptConfig()
     gpt = GPT(config)
