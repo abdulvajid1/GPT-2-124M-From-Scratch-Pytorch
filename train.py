@@ -26,8 +26,8 @@ torch.set_float32_matmul_precision('high') # all matmul become fast (not how wei
 WARMUP_STEPS = 50
 MAX_LR = 6e-4
 MIN_LR = MAX_LR * 0.10
-MAX_STEPS = 10000
-SAVE_STEP = 50
+MAX_STEPS = 20000
+SAVE_STEP = 100
 SAVE_PATH = os.path.join(os.getcwd(), 'checkpoints')
 logging_path = os.path.join(os.getcwd(), 'runs')
 
@@ -100,7 +100,7 @@ def train(model, optimizer, config: GptConfig, loader, epoch, grad_accumulation_
         writer.add_scalar('Learning rate Decay', lr, global_step)
         
         # Save Checkpoint
-        if (step+1) % SAVE_STEP == 0:
+        if (global_step) % SAVE_STEP == 0:
             print(f'Saving the model after {global_step} steps')
             
             # Create new checkpoint path for updated model
@@ -114,7 +114,7 @@ def train(model, optimizer, config: GptConfig, loader, epoch, grad_accumulation_
                 global_step=global_step)
         
         # Save to hf
-        if (step + 1) % hf_save_step == 0:
+        if (global_step) % hf_save_step == 0:
             save_to_hf(global_step)
         
         
