@@ -165,6 +165,7 @@ def get_argparser():
     parser = argparse.ArgumentParser()
     parser.add_argument("--load_checkpoint", type=str, default=None)
     parser.add_argument("--download_checkpoint", action='store_true', default=False)
+    parser.add_argument("--hf_login", type=str, default=None)
     return parser.parse_args()
     
 
@@ -173,8 +174,12 @@ def main():
     device = get_device()
     config = GptConfig(vocab_size=50304, device=device)
     
+    if args.hf_login:
+        login(args.hf_login)
+    
     if args.download_checkpoint:
         snapshot_download(repo_id=repo_id, local_dir=SAVE_PATH)
+        
     
     # Gradient Accumulation Step
     max_batch_size_token = 524288 # a good power of two number close 0.5M token batch size according gpt paper
