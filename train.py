@@ -18,7 +18,7 @@ import argparse
 from huggingface_hub import snapshot_download
 from save_checkpoint_hf_hub import save_to_hf
 
-# login huggingface for checkpointing
+login huggingface for checkpointing
 hf_save_step = 500
 
 torch.set_float32_matmul_precision('high') # all matmul become fast (not how weigts store)
@@ -46,7 +46,7 @@ def train(model, optimizer, config: GptConfig, loader, epoch, grad_accumulation_
     progress_bar = tqdm.tqdm(range(max_step), leave=True, desc=f'Epoch {epoch}: ', total=len(range(max_step)), dynamic_ncols=True)
     loader_iter = iter(loader)
     
-    for step in progress_bar:
+    for _ in progress_bar:
         loss_accm = 0.0
     
         # Gradient Accumulation   
@@ -56,7 +56,7 @@ def train(model, optimizer, config: GptConfig, loader, epoch, grad_accumulation_
             try:
                 batch = next(loader_iter)
             except StopIteration:
-                loader_iter = iter(loader)   # restart loader
+                loader_iter = iter(loader)
                 batch = next(loader_iter)
                 
             x, y = batch['input'].to(config.device), batch['labels'].to(config.device)

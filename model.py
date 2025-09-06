@@ -9,19 +9,41 @@ import inspect
 import torch.optim as optim
 from transformers import PreTrainedModel
 
+import config
+
 # Model architecture
 # 2025-09-04-19-34-32.png
 
-class PositionalEncoding(nn.Module):
+# Rotory positional encoding
+# 2025-09-06-16-43-19.png
+# the rotary matrix with pre-defined parameters Θ = {θi = 10000^(−2(i−1)/d),i∈[1,2,...,d/2]}. 
+
+class RotoryPositionalEncoding(nn.Module):
     def __init__(self, config: GptConfig):
         super().__init__()
-        self.pos_embed = nn.Embedding(config.context_len, config.d_model)
-    
+        self.config = config
+        self.precompute_thetas()
+        
+    def precompute_thetas(self):
+        thetas = 1 / (torch.pow(10000, torch.arange(0, self.config.d_model, 2)/self.config.d_model)) # (768/2, ) -> (384)
+        token_positions = torch.arange(self.config.context_len).unsqueeze(1) # [[1], [2].., [seq_len]] (384, 1)
+        pos_thetas = token_positions * thetas.unsqueeze(0) # (seq, 1) * (1, d_model//2) -> (seq, d_model//2)
+        self.register_buffer('cos_thetas', pos_thetas.cos().unsqueeze(0)) # (seq , 384)
+        self.register_buffer('sin_thetas', pos_thetas.sin().unsqueeze(0))
+        
     def forward(self, x):
-        seq_len = x.shape[1] 
-        positions = torch.arange(seq_len, device=x.device).unsqueeze(0)
-        return x + self.pos_embed(positions)
-  
+        bcz, seq_len, _ = x.size() # (bcz, seq, d_model)
+        
+        even_x = x[..., 0::2] # (bcz, seq, d_model//2)
+        odd_x = x[..., 1::2] # (bcz, seq, d_model//2)
+        
+        # rotate
+        even_rot = even_x * self.cos_thetas[..., :seq_len, :] - odd_x * self.sin_thetas[..., :seq_len, :]
+        odd_rot = odd_x * self.cos_thetas[..., :seq_len, :] + even_x * self.sin_thetas[..., :seq_len, :]
+        
+        x_stacked = torch.stack((even_rot, odd_rot), dim=-1) # bcz,seq,d_model,2
+        return x_stacked.flatten(2)
+    
   
 class FeedForward(nn.Module):
     def __init__(self, config: GptConfig):
@@ -56,43 +78,26 @@ class GPTAttention(nn.Module):
         self.K_w = nn.Linear(config.d_model, config.d_model)
         self.V_w = nn.Linear(config.d_model, config.d_model)
         self.O_w = nn.Linear(config.d_model, config.d_model)
+        self.rope = RotoryPositionalEncoding(config)
         causal_mask = torch.tril(torch.ones(1, 1, config.context_len, config.context_len))
         self.register_buffer('mask', causal_mask)
         
-    def _mask_atten_scores(self, atten_score, seq_len):
-        # Masking (Casual)
-        atten_score = atten_score.masked_fill(self.mask[:, :, :seq_len, :seq_len]==0, float('-inf'))
-        return atten_score
-    
-    def _calc_atten_score(self, query, key):
-        atten_score = (query @ key.transpose(-1, -2)) *  (1.0/ math.sqrt(key.size(-1)))
-        return atten_score
-    
-    def _create_contextualized_embeds(self, atten_score, value):
-        ctx_embd = atten_score @ value # (b, n_head, seq, seq) * (b, n_head, seq, head_dim) -> (b, n_head, seq, head_dim)
-        return ctx_embd
-        
     def forward(self, x: torch.Tensor):
         self.batch_size, self.seq_len = x.shape[0], x.shape[1]
-        
         assert self.config.d_model % self.config.n_heads == 0, "d_model should divisible by n_heads"
-        
         self.head_dim = self.config.d_model // self.config.n_heads
         
         query = self.Q_w(x)
         key = self.K_w(x)
         value = self.V_w(x)
         
+        query = self.rope(query)
+        key = self.rope(key) 
+        
         # (b, s, d_model) -> view -> (batch_size, seq_len, num_head, head_dim) -> permute ->(b, num_head, s, head_dim)
         query = query.view(self.batch_size, self.seq_len, self.config.n_heads, self.head_dim).transpose(1, 2)
         key = key.view(self.batch_size, self.seq_len, self.config.n_heads, self.head_dim).transpose(1, 2)
         value = value.view(self.batch_size, self.seq_len, self.config.n_heads, self.head_dim).transpose(1, 2)
-        
-        # These 4 lines can be replaced by flash attention
-        # atten_score = self._calc_atten_score(query, key)
-        # atten_score = self._mask_atten_scores(atten_score, self.seq_len)
-        # atten_score = F.softmax(atten_score, dim=-1)
-        # contextualized_embed = self._create_contextualized_embeds(atten_score, value)
         
         ctx_embd = F.scaled_dot_product_attention(query, key, value, is_causal=True)
         ctx_embd = ctx_embd.transpose(1, 2).contiguous().view(self.batch_size, self.seq_len, self.config.n_heads * self.head_dim)
@@ -122,20 +127,11 @@ class GPT(PreTrainedModel):
         self.tokenizer = tiktoken.get_encoding('gpt2')
         self.config = config
         self.tok_embed = nn.Embedding(config.vocab_size, config.d_model)
-        self.pos_embed = PositionalEncoding(config)
         self.decoder_blocks = nn.ModuleList([DecoderBlock(config) for _ in range(config.n_layers)])
         self.final_rms_norm = RMSNorm(config)
         self.final_layer = nn.Linear(config.d_model, config.vocab_size)
-        self.final_layer.weight = self.tok_embed.weight
-        
         self.apply(self._init_weights)
         
-    # 👇 tell HF that these weights are intentionally tied
-    _tied_weights_keys = ["final_layer.weight", "tok_embed.weight"]
-    
-    def tie_weights(self):
-        self.final_layer.weight = self.tok_embed.weight
-    
     def _init_weights(self, module):
         if isinstance(module, nn.Linear):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
@@ -151,7 +147,6 @@ class GPT(PreTrainedModel):
         batch_size, seq_len = x.size()
         assert seq_len <= self.config.context_len, "seq length should be less than context length"
         x = self.tok_embed(x)
-        x = self.pos_embed(x)
         
         for block in self.decoder_blocks:
             x = block(x)
