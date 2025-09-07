@@ -65,6 +65,7 @@ class RMSNorm(nn.Module):
         super().__init__()
         self.scale = nn.Parameter(torch.ones(config.d_model))
         self.eps = eps
+
     def forward(self, x: torch.Tensor):
         rms = x.pow(2).mean(dim=-1, keepdim=True).sqrt()
         x_norm = x / (rms + self.eps)
@@ -75,12 +76,12 @@ class RMSNorm(nn.Module):
 class GPTAttention(nn.Module):
     def __init__(self, config: GptConfig):
         super().__init__()
+
         self.config = config
         self.Q_w = nn.Linear(config.d_model, config.d_model)
         self.K_w = nn.Linear(config.d_model, config.d_model)
         self.V_w = nn.Linear(config.d_model, config.d_model)
         self.O_w = nn.Linear(config.d_model, config.d_model)
-       
         self.rope = RotoryPositionalEncoding(config)
         
     def forward(self, x: torch.Tensor):
@@ -143,18 +144,18 @@ class GPT(PreTrainedModel):
             
     
     def forward(self, x, target=None):
-        """x: (b, seq)
-           target: (b, seq)"""
-        
+     
         batch_size, seq_len = x.size()
         assert seq_len <= self.config.context_len, "seq length should be less than context length"
+
+        # token_embedding -> decoder_layers -> final_layernorm -> fin_layer
         x = self.tok_embed(x)
-        
         for block in self.decoder_blocks:
             x = block(x)
             
         x = self.final_rms_norm(x)
         logits = self.final_layer(x) # (b, seq, vocab_size)
+
         loss = None
         if target != None:
             loss = F.cross_entropy(logits.view(batch_size*seq_len, -1), target.view(-1))

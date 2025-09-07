@@ -5,6 +5,7 @@ import os
 import shutil
 import pathlib
 import glob
+from pathlib import Path
 
 def save_to_hf(global_step: int, keep_last_only: bool = True):
     """
@@ -25,7 +26,7 @@ def save_to_hf(global_step: int, keep_last_only: bool = True):
     
     # Remove old checkpoints if keep_last_only is True
     if keep_last_only:
-        for ckpt_dir in checkpoint_dirs[:-1]:
+        for ckpt_dir in checkpoint_dirs[:-2]: # delete all checkpoints except last two checkpoint
             try:
                 shutil.rmtree(ckpt_dir)
                 print(f"Removed old checkpoint: {ckpt_dir}")
