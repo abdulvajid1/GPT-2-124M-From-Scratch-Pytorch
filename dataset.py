@@ -2,7 +2,7 @@ from torch.utils.data import Dataset, DataLoader
 import torch
 from datasets import load_from_disk, load_dataset
 import os
-from datasets import concatenate_datasets
+from datasets import load_dataset, Features, Sequence, Value, concatenate_datasets
 # dataset_path = "pretrain_data\openwebtext_tokenized"
 
 dataset_path = os.path.join(os.getcwd(), 'pretrain_data', "data")
@@ -31,6 +31,16 @@ def get_data_loader(batch_size=8, shuffle=True, pin_memory=False, num_workers=1)
     os.makedirs(dataset_path, exist_ok=True)
     fineweb = load_dataset('Abdulvajid/fineweb-sample10BT', split='train', cache_dir=dataset_path)
     openwebtext = load_dataset('Abdulvajid/gpt2-dataset', split='train', cache_dir=dataset_path)
+    
+    features = Features({
+    "input": Sequence(Value("uint16")),
+    "labels": Sequence(Value("uint16")),
+    })
+
+    openwebtext = openwebtext.cast(features)
+
+    # import code; code.interact(local=locals())
+    # import sys; sys.exit(0);
     dataset = concatenate_datasets([fineweb, openwebtext])
     dataset = dataset.shuffle()
     dataset.set_format('torch')
