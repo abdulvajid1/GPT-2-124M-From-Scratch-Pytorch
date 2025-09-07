@@ -13,7 +13,7 @@ class GptConfig(PretrainedConfig):
         device="cpu",
         intermidiate_size=None,
         n_epoch=5,
-        batch_size=8,
+        batch_size=2,
         load_checkpoint=True,
         weight_decay=0.1,
         lr=6e-4,

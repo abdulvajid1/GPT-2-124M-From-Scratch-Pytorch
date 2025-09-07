@@ -18,7 +18,6 @@ import argparse
 from huggingface_hub import snapshot_download
 from save_checkpoint_hf_hub import save_to_hf
 
-login huggingface for checkpointing
 hf_save_step = 500
 
 torch.set_float32_matmul_precision('high') # all matmul become fast (not how weigts store)
@@ -172,7 +171,7 @@ def get_argparser():
 def main():
     args = get_argparser()
     device = get_device()
-    config = GptConfig(vocab_size=50304, device=device)
+    config = GptConfig(vocab_size=50304, d_model=1024, n_layers=32, n_heads=8, device=device)
     
     if args.hf_login:
         login(args.hf_login)
@@ -216,8 +215,6 @@ def main():
         model = torch.compile(model)
         global_step = 0
         print('Starting Fresh training from global step 0')
-        
-    
         
         
     # Train 

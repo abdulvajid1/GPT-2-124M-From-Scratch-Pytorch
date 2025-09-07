@@ -25,24 +25,26 @@ class RotoryPositionalEncoding(nn.Module):
         self.precompute_thetas()
         
     def precompute_thetas(self):
-        thetas = 1 / (torch.pow(10000, torch.arange(0, self.config.d_model, 2)/self.config.d_model)) # (768/2, ) -> (384)
-        token_positions = torch.arange(self.config.context_len).unsqueeze(1) # [[1], [2].., [seq_len]] (384, 1)
-        pos_thetas = token_positions * thetas.unsqueeze(0) # (seq, 1) * (1, d_model//2) -> (seq, d_model//2)
-        self.register_buffer('cos_thetas', pos_thetas.cos().unsqueeze(0)) # (seq , 384)
-        self.register_buffer('sin_thetas', pos_thetas.sin().unsqueeze(0))
+        head_dim = self.config.d_model // self.config.n_heads # 128
+        thetas = 1 / (torch.pow(10000, torch.arange(0, head_dim , 2)/head_dim))  # (64)
+        token_positions = torch.arange(self.config.context_len) # (1024) $$\theta$$
+        pos_thetas = torch.outer(token_positions, thetas) # (1024, 64) = ($$m_\theta$$) each pos head_dim have a theta
+        self.register_buffer('cos_thetas', pos_thetas.cos().unsqueeze(0).unsqueeze(-2)) 
+        self.register_buffer('sin_thetas', pos_thetas.sin().unsqueeze(0).unsqueeze(-2)) # (1, seq_len, 1, 64) for broadcasting
         
     def forward(self, x):
-        bcz, seq_len, _ = x.size() # (bcz, seq, d_model)
+        bcz, seq_len, _, _ = x.size() # (bcz, seq, heads, head_dim)
         
-        even_x = x[..., 0::2] # (bcz, seq, d_model//2)
-        odd_x = x[..., 1::2] # (bcz, seq, d_model//2)
+        even_x = x[..., 0::2] # (bcz, seq, head, head_dim//2)
+        odd_x = x[..., 1::2] # (bcz, seq, head, head_dim//2)
         
         # rotate
-        even_rot = even_x * self.cos_thetas[..., :seq_len, :] - odd_x * self.sin_thetas[..., :seq_len, :]
-        odd_rot = odd_x * self.cos_thetas[..., :seq_len, :] + even_x * self.sin_thetas[..., :seq_len, :]
+        even_rot = even_x * self.cos_thetas[..., :seq_len, :, :] - odd_x * self.sin_thetas[..., :seq_len, :, :]
+        odd_rot = odd_x * self.cos_thetas[..., :seq_len, :, :] + even_x * self.sin_thetas[..., :seq_len, :, :]
         
         x_stacked = torch.stack((even_rot, odd_rot), dim=-1) # bcz,seq,d_model,2
-        return x_stacked.flatten(2)
+
+        return x_stacked.flatten(-2)
     
   
 class FeedForward(nn.Module):
@@ -78,9 +80,8 @@ class GPTAttention(nn.Module):
         self.K_w = nn.Linear(config.d_model, config.d_model)
         self.V_w = nn.Linear(config.d_model, config.d_model)
         self.O_w = nn.Linear(config.d_model, config.d_model)
+       
         self.rope = RotoryPositionalEncoding(config)
-        causal_mask = torch.tril(torch.ones(1, 1, config.context_len, config.context_len))
-        self.register_buffer('mask', causal_mask)
         
     def forward(self, x: torch.Tensor):
         self.batch_size, self.seq_len = x.shape[0], x.shape[1]
@@ -91,15 +92,15 @@ class GPTAttention(nn.Module):
         key = self.K_w(x)
         value = self.V_w(x)
         
-        query = self.rope(query)
-        key = self.rope(key) 
-        
         # (b, s, d_model) -> view -> (batch_size, seq_len, num_head, head_dim) -> permute ->(b, num_head, s, head_dim)
         query = query.view(self.batch_size, self.seq_len, self.config.n_heads, self.head_dim).transpose(1, 2)
         key = key.view(self.batch_size, self.seq_len, self.config.n_heads, self.head_dim).transpose(1, 2)
         value = value.view(self.batch_size, self.seq_len, self.config.n_heads, self.head_dim).transpose(1, 2)
+
+        query = self.rope(query)
+        key = self.rope(key) 
         
-        ctx_embd = F.scaled_dot_product_attention(query, key, value, is_causal=True)
+        ctx_embd = F.scaled_dot_product_attention(query, key, value, is_causal=True, dropout_p=0.05)
         ctx_embd = ctx_embd.transpose(1, 2).contiguous().view(self.batch_size, self.seq_len, self.config.n_heads * self.head_dim)
         return self.O_w(ctx_embd)
 
@@ -144,6 +145,7 @@ class GPT(PreTrainedModel):
     def forward(self, x, target=None):
         """x: (b, seq)
            target: (b, seq)"""
+        
         batch_size, seq_len = x.size()
         assert seq_len <= self.config.context_len, "seq length should be less than context length"
         x = self.tok_embed(x)
