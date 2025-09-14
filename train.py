@@ -165,13 +165,14 @@ def get_argparser():
     parser.add_argument("--load_checkpoint", type=str, default=None)
     parser.add_argument("--download_checkpoint", action='store_true', default=False)
     parser.add_argument("--hf_login", type=str, default=None)
+    parser.add_argument("--batch_size", type=int, default=8)
     return parser.parse_args()
     
 
 def main():
     args = get_argparser()
     device = get_device()
-    config = GptConfig(vocab_size=50304, d_model=1024, n_layers=32, n_heads=8, device=device)
+    config = GptConfig(vocab_size=50304, d_model=1024, n_layers=32, n_heads=8, device=device, batch_size=args.batch_size)
     
     if args.hf_login:
         login(args.hf_login)
